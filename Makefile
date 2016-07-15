@@ -4,7 +4,7 @@ DEBUG = -g
 CFLAGS = -Wall -c $(DEBUG)
 LFLAGS = -Wall $(DEBUG)
 
-EXEC = oclFeatureExt
+EXEC = oclFeatureExt.out
 
 all : $(EXEC)
 

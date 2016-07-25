@@ -20,4 +20,4 @@ $(OBJS) : %.o : %.cpp
 	$(CC) $(CPPFLAGS) $< -o $@
 
 clean:
-	\rm *.o *~ $(EXEC)
+	rm -f *.o *~ $(EXEC)

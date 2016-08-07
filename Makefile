@@ -1,10 +1,8 @@
 OBJS = oclFeatureExt.o
 CC = g++
-DEBUG = -g
-CPPFLAGS = -Wall -c $(DEBUG)
-LDFLAGS = -Wall $(DEBUG)
+DEBUG = -g -DDEBUG
 
-CPPFLAGS = -Wall -c `llvm-config --cppflags` -std=c++11
+CPPFLAGS = -Wall -c `llvm-config --cppflags` -std=c++11 ${DEBUG}
 LDFLAGS = -Wall `llvm-config --ldflags`
 LIBS = `llvm-config --libs --system-libs`
 

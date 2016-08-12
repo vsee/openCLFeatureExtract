@@ -8,18 +8,46 @@
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/ADT/Twine.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/Casting.h>
 
 using namespace std;
 using namespace llvm;
-
-/* TODO
- * count loads and stores total, global and local
- */
 
 const unordered_set<string> BIN_OPS = {"add","fadd", "sub", "fsub", "mul", "fmul", "udiv", "sdif", "fdiv", "urem", "srem", "frem"};
 const unordered_set<string> BITBIN_OPS = {"shl","lshr", "ashr", "and", "or", "xor"};
 const unordered_set<string> VEC_OPS = {"extractelement","insertelement", "shufflevector"};
 const unordered_set<string> AGG_OPS = {"extractvalue","insertvalue"};
+
+
+#define LOCAL_ADDRESS_SPACE 1
+#define GLOBAL_ADDRESS_SPACE 2
+#define USAGE "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output dir>\n\t-v verbose\n"
+
+class InputParser{
+    public:
+        InputParser (int &argc, char **argv){
+            for (int i=1; i < argc; ++i)
+                this->tokens.push_back(string(argv[i]));
+        }
+        /// @author iain
+        const string& getCmdOption(const string &option) const{
+            vector<string>::const_iterator itr;
+            itr =  find(this->tokens.begin(), this->tokens.end(), option);
+            if (itr != this->tokens.end() && ++itr != this->tokens.end()){
+                return *itr;
+            }
+            static const string empty = "";
+            return empty;
+        }
+        /// @author iain
+        bool cmdOptionExists(const string &option) const{
+            return find(this->tokens.begin(), this->tokens.end(), option)
+                   != this->tokens.end();
+        }
+    private:
+        vector <string> tokens;
+};
 
 class FeatureStats {
     
@@ -68,12 +96,32 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats);
 
 /* TODO dump to CSV
  * TODO initial arguments to point at file
- * TODO more features local and global space loading and storing
  */
 
+bool verbose = false;
+
 int main(int argc, char* argv[]) {
+    InputParser input(argc, argv);
+    
+    if(input.cmdOptionExists("-h")) {
+        cout << USAGE;
+        exit(0);
+    }
+    if(input.cmdOptionExists("-v")) {
+        verbose = true;
+    }
+    const string &fileName = input.getCmdOption("-f");
+    if (fileName.empty()){
+        cout << USAGE;
+        exit(1);
+    }
+    const string &outDir = input.getCmdOption("-o");
+    if (outDir.empty()){
+        cout << USAGE;
+        exit(1);
+    }
+    
     FeatureStats stats;
-    const string fileName = "res/kernelSample/nw.bc";
 
     ErrorOr<unique_ptr<MemoryBuffer>> fileBuffer = MemoryBuffer::getFile(fileName);
     if (error_code ec = fileBuffer.getError())
@@ -101,10 +149,7 @@ int main(int argc, char* argv[]) {
             stats.bbcount++;
             for (BasicBlock::const_iterator curIref = curBref->begin(), endIref = curBref->end();
                  curIref != endIref; curIref++) {
-                
-#ifdef DEBUG
-                outs() << "Found an instruction: " << *curIref << "\n";
-#endif                
+                if(verbose) outs() << "Found an instruction: " << *curIref << "\n";        
                 evalInstruction(*curIref, stats);               
             }
             
@@ -131,44 +176,27 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
     else if(VEC_OPS.find(opName) != VEC_OPS.end()) {
         stats.aggOpsCount++;
     } else if(opName == "load") {
-#ifdef DEBUG
-        cout << "Found load op: " << inst.getOpcodeName() << "\n";
-#endif
         stats.loadOpsCount++;
   
-//        outs() << inst.getNumOperands() << "\n";
-//        if(inst.getOperandUse(0)->getType()->isPointerTy()) {
-//            PointerType* oppType = (PointerType*) inst.getOperandUse(1)->getType();
-//            if(oppType->getAddressSpace() == 1) {
-//                stats.localMemAcc++;
-//            } else if(oppType->getAddressSpace() == 2) {
-//                stats.globalMemAcc++;
-//            } else {
-//                cout << "WARNING: unhandled address space: " << oppType << "\n";
-//            }
-//        }
-    } else if(opName == "store") {
-#ifdef DEBUG
-        cout << "Found store op: " << inst.getOpcodeName() << "\n";
-#endif
-        stats.storeOpsCount++;
-        // TODO what about this??
-        //outs() << ((StoreInst) inst).getPointerAddressSpace(); "\n";
-        
-        // TODO what about that??
-        //outs() << isa<LoadInst>(inst) << "\n";
-        
-        outs() << inst.getNumOperands() << "\n";
-        if(inst.getOperandUse(1)->getType()->isPointerTy()) {
-            PointerType* oppType = (PointerType*) inst.getOperandUse(1)->getType();
-            if(oppType->getAddressSpace() == 1) {
-                outs() << "Local Mem Access" << "\n";
+        if (const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
+            if(li->getPointerAddressSpace() == LOCAL_ADDRESS_SPACE) {
                 stats.localMemAcc++;
-            } else if(oppType->getAddressSpace() == 2) {
-                outs() << "Global Mem Access" << "\n";
+            } else if(li->getPointerAddressSpace() == GLOBAL_ADDRESS_SPACE) {
                 stats.globalMemAcc++;
             } else {
-                cout << "WARNING: unhandled address space: " << oppType << "\n";
+                cout << "WARNING: unhandled address space: " << li->getPointerAddressSpace() << "\n";
+            }
+        }
+    } else if(opName == "store") {
+        stats.storeOpsCount++;
+        
+        if (const StoreInst *si = dyn_cast<StoreInst>(&inst)) {
+            if(si->getPointerAddressSpace() == LOCAL_ADDRESS_SPACE) {
+                stats.localMemAcc++;
+            } else if(si->getPointerAddressSpace() == GLOBAL_ADDRESS_SPACE) {
+                stats.globalMemAcc++;
+            } else {
+                cout << "WARNING: unhandled address space: " << si->getPointerAddressSpace() << "\n";
             }
         }
     } else {

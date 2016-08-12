@@ -31,10 +31,15 @@ public:
     int bitbinOpsCount = 0;
     int vecOpsCount = 0;
     int aggOpsCount = 0;
+    int loadOpsCount = 0;
+    int storeOpsCount = 0;
     int otherOpsCount = 0;
+    
+    int globalMemAcc = 0;
+    int localMemAcc = 0;
 
     // Global operator<< overload:
-    friend raw_ostream &operator<<(raw_ostream &os, const FeatureStats &stats)
+    friend ostream &operator<<(ostream &os, const FeatureStats &stats)
     {
         os << "\n###############################\n";
         os << "#Functions: " << stats.funcount << "\n";
@@ -44,10 +49,16 @@ public:
         os << "#Bit Bin Ops: " << stats.bitbinOpsCount << "\n";
         os << "#Vec Ops: " << stats.vecOpsCount << "\n";
         os << "#Agg Ops: " << stats.aggOpsCount << "\n";
+        os << "#Load Ops: " << stats.loadOpsCount << "\n";
+        os << "#Store Ops: " << stats.storeOpsCount << "\n";
         os << "#Other Ops: " << stats.otherOpsCount << "\n";
+        
+        os << "\n#Global Mem Access: " << stats.globalMemAcc << "\n";
+        os << "#Local Mem Access: " << stats.localMemAcc << "\n";
         os << "-------------------------------------------\n";
         os << "#Total Ops: " << (stats.binOpsCount + stats.bitbinOpsCount + 
-                stats.vecOpsCount + stats.aggOpsCount + stats.otherOpsCount);
+                stats.vecOpsCount + stats.aggOpsCount + stats.otherOpsCount +
+                stats.loadOpsCount + stats.storeOpsCount);
         
         return os;
     }
@@ -58,51 +69,43 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats);
 /* TODO dump to CSV
  * TODO initial arguments to point at file
  * TODO more features local and global space loading and storing
- * TODO get rid of all the debug output
  */
 
 int main(int argc, char* argv[]) {
-
     FeatureStats stats;
     const string fileName = "res/kernelSample/nw.bc";
-    
+
     ErrorOr<unique_ptr<MemoryBuffer>> fileBuffer = MemoryBuffer::getFile(fileName);
     if (error_code ec = fileBuffer.getError())
-		outs() << "ERROR loading bitcode file: " << fileName << " -- " << ec.message() << "\n";
+		cout << "ERROR loading bitcode file: " << fileName << " -- " << ec.message() << "\n";
 	else
-		outs() << "Bitcode file loaded: " << fileName << "\n";  
+		cout << "Bitcode file loaded: " << fileName << "\n";  
     
     
     LLVMContext context;
     MemoryBufferRef memRef = (*fileBuffer)->getMemBufferRef();
     ErrorOr<unique_ptr<Module>> bcModule = parseBitcodeFile(memRef, context);
     if (error_code ec = bcModule.getError())
-            outs() << "ERROR parsing bitcode file" << ec.message() << "\n";
+            cout << "ERROR parsing bitcode file" << ec.message() << "\n";
     else
-            outs() << "Bitcode parsed successfully!"<< "\n";
+            cout << "Bitcode parsed successfully!"<< "\n";
     
        
     for (Module::const_iterator curFref = (*bcModule)->getFunctionList().begin(),
          endFref = (*bcModule)->getFunctionList().end();
          curFref != endFref; curFref++) {
         stats.funcount++;
-#ifdef DEBUG
-        outs() << "Found function: " << curFref->getName() << "\n";
-#endif
 
         for (Function::const_iterator curBref = curFref->begin(), endBref = curFref->end();
          curBref != endBref; curBref++) {
             stats.bbcount++;
-#ifdef DEBUG
-            outs() << "Found a block: " << curBref->getName() << "\n";
-#endif
             for (BasicBlock::const_iterator curIref = curBref->begin(), endIref = curBref->end();
                  curIref != endIref; curIref++) {
+                
 #ifdef DEBUG
                 outs() << "Found an instruction: " << *curIref << "\n";
 #endif                
-                evalInstruction(*curIref, stats);
-                
+                evalInstruction(*curIref, stats);               
             }
             
         }
@@ -110,42 +113,65 @@ int main(int argc, char* argv[]) {
         
     }
     
-    outs() << stats << "\n";
+    cout << stats << "\n";
 }
-
-
 
 void evalInstruction(const Instruction &inst, FeatureStats &stats) {
 
     string opName = inst.getOpcodeName();
     if(BIN_OPS.find(opName) != BIN_OPS.end()) {
-#ifdef DEBUG
-        outs() << "Found bin op: " << inst.getOpcodeName() << "\n";
-#endif
         stats.binOpsCount++;
     }
     else if(BITBIN_OPS.find(opName) != BITBIN_OPS.end()) {
-#ifdef DEBUG
-        outs() << "Found bitwise bin op: " << inst.getOpcodeName() << "\n";
-#endif
         stats.bitbinOpsCount++;
     }
     else if(AGG_OPS.find(opName) != AGG_OPS.end()) {
-#ifdef DEBUG
-        outs() << "Found aggregate op: " << inst.getOpcodeName() << "\n";
-#endif
         stats.vecOpsCount++;
     }
     else if(VEC_OPS.find(opName) != VEC_OPS.end()) {
-#ifdef DEBUG
-        outs() << "Found vector op: " << inst.getOpcodeName() << "\n";
-#endif
         stats.aggOpsCount++;
-    }
-    else {
+    } else if(opName == "load") {
 #ifdef DEBUG
-        outs() << "Found other op: " << inst.getOpcodeName() << "\n";
+        cout << "Found load op: " << inst.getOpcodeName() << "\n";
 #endif
+        stats.loadOpsCount++;
+  
+//        outs() << inst.getNumOperands() << "\n";
+//        if(inst.getOperandUse(0)->getType()->isPointerTy()) {
+//            PointerType* oppType = (PointerType*) inst.getOperandUse(1)->getType();
+//            if(oppType->getAddressSpace() == 1) {
+//                stats.localMemAcc++;
+//            } else if(oppType->getAddressSpace() == 2) {
+//                stats.globalMemAcc++;
+//            } else {
+//                cout << "WARNING: unhandled address space: " << oppType << "\n";
+//            }
+//        }
+    } else if(opName == "store") {
+#ifdef DEBUG
+        cout << "Found store op: " << inst.getOpcodeName() << "\n";
+#endif
+        stats.storeOpsCount++;
+        // TODO what about this??
+        //outs() << ((StoreInst) inst).getPointerAddressSpace(); "\n";
+        
+        // TODO what about that??
+        //outs() << isa<LoadInst>(inst) << "\n";
+        
+        outs() << inst.getNumOperands() << "\n";
+        if(inst.getOperandUse(1)->getType()->isPointerTy()) {
+            PointerType* oppType = (PointerType*) inst.getOperandUse(1)->getType();
+            if(oppType->getAddressSpace() == 1) {
+                outs() << "Local Mem Access" << "\n";
+                stats.localMemAcc++;
+            } else if(oppType->getAddressSpace() == 2) {
+                outs() << "Global Mem Access" << "\n";
+                stats.globalMemAcc++;
+            } else {
+                cout << "WARNING: unhandled address space: " << oppType << "\n";
+            }
+        }
+    } else {
         stats.otherOpsCount++;
     }
 }

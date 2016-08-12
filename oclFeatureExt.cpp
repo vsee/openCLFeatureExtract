@@ -1,6 +1,7 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <fstream>
 #include <unordered_set>
 
 #include <llvm/IR/LLVMContext.h>
@@ -22,7 +23,7 @@ const unordered_set<string> AGG_OPS = {"extractvalue","insertvalue"};
 
 #define LOCAL_ADDRESS_SPACE 1
 #define GLOBAL_ADDRESS_SPACE 2
-#define USAGE "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output dir>\n\t-v verbose\n"
+#define USAGE "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output file>\n\t-v verbose\n"
 
 class InputParser{
     public:
@@ -84,19 +85,20 @@ public:
         os << "\n#Global Mem Access: " << stats.globalMemAcc << "\n";
         os << "#Local Mem Access: " << stats.localMemAcc << "\n";
         os << "-------------------------------------------\n";
-        os << "#Total Ops: " << (stats.binOpsCount + stats.bitbinOpsCount + 
-                stats.vecOpsCount + stats.aggOpsCount + stats.otherOpsCount +
-                stats.loadOpsCount + stats.storeOpsCount);
+        os << "#Total Ops: " << stats.getTotalOpsCount();
         
         return os;
+    }
+    
+    int getTotalOpsCount() const {
+        return binOpsCount + bitbinOpsCount + 
+                vecOpsCount + aggOpsCount + otherOpsCount +
+                loadOpsCount + storeOpsCount;
     }
 };
 
 void evalInstruction(const Instruction &inst, FeatureStats &stats);
-
-/* TODO dump to CSV
- * TODO initial arguments to point at file
- */
+void writeToCSV(const string &outFile, const FeatureStats &stats);
 
 bool verbose = false;
 
@@ -115,8 +117,8 @@ int main(int argc, char* argv[]) {
         cout << USAGE;
         exit(1);
     }
-    const string &outDir = input.getCmdOption("-o");
-    if (outDir.empty()){
+    const string &outFile = input.getCmdOption("-o");
+    if (outFile.empty()){
         cout << USAGE;
         exit(1);
     }
@@ -158,7 +160,8 @@ int main(int argc, char* argv[]) {
         
     }
     
-    cout << stats << "\n";
+    cout << stats << "\n\n";
+    writeToCSV(outFile, stats);
 }
 
 void evalInstruction(const Instruction &inst, FeatureStats &stats) {
@@ -202,4 +205,25 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
     } else {
         stats.otherOpsCount++;
     }
+}
+
+void writeToCSV(const string &outFile, const FeatureStats &stats) {
+    cout << "Writing to file: " << outFile << endl;
+    
+    ofstream out;
+    out.open (outFile);
+    out << "functions,bbs,binOps,bitBinOps,vecOps,aggOps,loadOps,storeOps,otherOps,totalOps,gMemAcc,lMemAcc" << endl;
+    out << stats.funcount << "," <<
+            stats.bbcount << "," <<
+            stats.binOpsCount << "," <<
+            stats.bitbinOpsCount << "," <<
+            stats.vecOpsCount << "," <<
+            stats.aggOpsCount << "," <<
+            stats.loadOpsCount << "," <<
+            stats.storeOpsCount << "," <<
+            stats.otherOpsCount << "," <<
+            stats.getTotalOpsCount() << "," <<
+            stats.globalMemAcc << "," <<
+            stats.localMemAcc << endl;
+    out.close();
 }

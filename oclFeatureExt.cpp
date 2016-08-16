@@ -20,10 +20,9 @@ const unordered_set<string> BITBIN_OPS = {"shl","lshr", "ashr", "and", "or", "xo
 const unordered_set<string> VEC_OPS = {"extractelement","insertelement", "shufflevector"};
 const unordered_set<string> AGG_OPS = {"extractvalue","insertvalue"};
 
-
-#define LOCAL_ADDRESS_SPACE 1
-#define GLOBAL_ADDRESS_SPACE 2
-#define USAGE "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output file>\n\t-v verbose\n"
+const unsigned localAddressSpace = 1;
+const unsigned globalAddressSpace = 2;
+const string usage = "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output file>\n\t-v verbose\n";
 
 class InputParser{
     public:
@@ -98,6 +97,7 @@ public:
 };
 
 void evalInstruction(const Instruction &inst, FeatureStats &stats);
+void checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats);
 void writeToCSV(const string &outFile, const FeatureStats &stats);
 
 bool verbose = false;
@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
     InputParser input(argc, argv);
     
     if(input.cmdOptionExists("-h")) {
-        cout << USAGE;
+        cout << usage;
         exit(0);
     }
     if(input.cmdOptionExists("-v")) {
@@ -114,12 +114,12 @@ int main(int argc, char* argv[]) {
     }
     const string &fileName = input.getCmdOption("-f");
     if (fileName.empty()){
-        cout << USAGE;
+        cout << usage;
         exit(1);
     }
     const string &outFile = input.getCmdOption("-o");
     if (outFile.empty()){
-        cout << USAGE;
+        cout << usage;
         exit(1);
     }
     
@@ -156,8 +156,6 @@ int main(int argc, char* argv[]) {
             }
             
         }
-        
-        
     }
     
     cout << stats << "\n\n";
@@ -178,32 +176,25 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
     }
     else if(VEC_OPS.find(opName) != VEC_OPS.end()) {
         stats.aggOpsCount++;
-    } else if(opName == "load") {
+    } else if(const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
         stats.loadOpsCount++;
-  
-        if (const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
-            if(li->getPointerAddressSpace() == LOCAL_ADDRESS_SPACE) {
-                stats.localMemAcc++;
-            } else if(li->getPointerAddressSpace() == GLOBAL_ADDRESS_SPACE) {
-                stats.globalMemAcc++;
-            } else {
-                cout << "WARNING: unhandled address space: " << li->getPointerAddressSpace() << "\n";
-            }
-        }
-    } else if(opName == "store") {
+        checkAddrSpace(li->getPointerAddressSpace(), stats);
+    } else if (const StoreInst *si = dyn_cast<StoreInst>(&inst)) {
         stats.storeOpsCount++;
-        
-        if (const StoreInst *si = dyn_cast<StoreInst>(&inst)) {
-            if(si->getPointerAddressSpace() == LOCAL_ADDRESS_SPACE) {
-                stats.localMemAcc++;
-            } else if(si->getPointerAddressSpace() == GLOBAL_ADDRESS_SPACE) {
-                stats.globalMemAcc++;
-            } else {
-                cout << "WARNING: unhandled address space: " << si->getPointerAddressSpace() << "\n";
-            }
-        }
+        checkAddrSpace(si->getPointerAddressSpace(), stats);
     } else {
         stats.otherOpsCount++;
+    }
+    
+}
+
+void checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats) {
+    if(addrSpaceId == localAddressSpace) {
+        stats.localMemAcc++;
+    } else if(addrSpaceId == globalAddressSpace) {
+        stats.globalMemAcc++;
+    } else {
+        cout << "WARNING: unhandled address space id: " << addrSpaceId << "\n";
     }
 }
 

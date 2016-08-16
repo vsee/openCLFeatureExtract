@@ -8,6 +8,7 @@ import csv
 import argparse
 
 # TODO generate temporary files in temporary dir
+# TODO get rid of linking local files in compilation commands
 
 parser = argparse.ArgumentParser(description='Collect static kernel features for cl kernel files.')
 
@@ -30,15 +31,17 @@ print(*kernels, sep="\n")
 
 BITCODE_OUT = "out.bc"
 FEATURE_OUT = "feature_out.csv"
-COMPILE_CMD = "clang -include %s -include /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/clc/clc.h -I /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/ -DBLOCK_SIZE=16 -Dcl_clang_storage_class_specifiers %s -o %s -emit-llvm -c -O3 -x cl"
+COMPILE_CMD = ("clang -include %s -include /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/clc/clc.h "
+"-I /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/ -DBLOCK_SIZE=16 -Dcl_clang_storage_class_specifiers %s "
+"-o %s -emit-llvm -c -O3 -x cl -w")
 
 KERNEL_HEADER_FILE = "kernel.h"
 KERNEL_HEADER = """
 #ifndef ADDRESS_SPACE_H
 #define ADDRESS_SPACE_H
 
-#define __global __attribute__((address_space(1)))
-#define __local __attribute__((address_space(2)))
+#define __local __attribute__((address_space(1)))
+#define __global __attribute__((address_space(2)))
 
 #endif
 """
@@ -54,7 +57,7 @@ for kernel in kernels:
     p = subprocess.Popen(cmd, stderr=subprocess.STDOUT, shell=True)
     p.wait()
 
-    cmd = "../../oclFeatureExt.out -f ./out.bc -o %s" % (FEATURE_OUT)
+    cmd = "./oclFeatureExt.out -f ./out.bc -o %s" % (FEATURE_OUT)
     print("\n\n######################## GETTING FEATURES:\n" + cmd + "\n################################")
     p = subprocess.Popen(cmd, stderr=subprocess.STDOUT, shell=True)
     p.wait()

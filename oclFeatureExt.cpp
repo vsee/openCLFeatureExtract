@@ -20,6 +20,7 @@ const unordered_set<string> BITBIN_OPS = {"shl","lshr", "ashr", "and", "or", "xo
 const unordered_set<string> VEC_OPS = {"extractelement","insertelement", "shufflevector"};
 const unordered_set<string> AGG_OPS = {"extractvalue","insertvalue"};
 
+const unsigned privateAddressSpace = 0;
 const unsigned localAddressSpace = 1;
 const unsigned globalAddressSpace = 2;
 const string usage = "Usage:\n\t-h help\n\t-f <kernel bitcode file>\n\t-o <output file>\n\t-v verbose\n";
@@ -65,6 +66,7 @@ public:
     
     int globalMemAcc = 0;
     int localMemAcc = 0;
+    int privateMemAcc = 0;
 
     // Global operator<< overload:
     friend ostream &operator<<(ostream &os, const FeatureStats &stats)
@@ -83,6 +85,7 @@ public:
         
         os << "\n#Global Mem Access: " << stats.globalMemAcc << "\n";
         os << "#Local Mem Access: " << stats.localMemAcc << "\n";
+        os << "#Private Mem Access: " << stats.privateMemAcc << "\n";
         os << "-------------------------------------------\n";
         os << "#Total Ops: " << stats.getTotalOpsCount();
         
@@ -97,7 +100,7 @@ public:
 };
 
 void evalInstruction(const Instruction &inst, FeatureStats &stats);
-void checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats);
+bool checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats);
 void writeToCSV(const string &outFile, const FeatureStats &stats);
 
 bool verbose = false;
@@ -178,23 +181,31 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
         stats.aggOpsCount++;
     } else if(const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
         stats.loadOpsCount++;
-        checkAddrSpace(li->getPointerAddressSpace(), stats);
+        if (!checkAddrSpace(li->getPointerAddressSpace(), stats))
+            li->dump();
     } else if (const StoreInst *si = dyn_cast<StoreInst>(&inst)) {
         stats.storeOpsCount++;
-        checkAddrSpace(si->getPointerAddressSpace(), stats);
+        if (!checkAddrSpace(si->getPointerAddressSpace(), stats))
+            li->dump();
     } else {
         stats.otherOpsCount++;
     }
     
 }
 
-void checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats) {
+bool checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats) {
     if(addrSpaceId == localAddressSpace) {
         stats.localMemAcc++;
+        return true;
     } else if(addrSpaceId == globalAddressSpace) {
         stats.globalMemAcc++;
+        return true;
+    } else if(addrSpaceId == privateAddressSpace) {
+        stats.privateMemAcc++;
+        return true;
     } else {
         cout << "WARNING: unhandled address space id: " << addrSpaceId << "\n";
+        return false;
     }
 }
 
@@ -203,7 +214,7 @@ void writeToCSV(const string &outFile, const FeatureStats &stats) {
     
     ofstream out;
     out.open (outFile);
-    out << "functions,bbs,binOps,bitBinOps,vecOps,aggOps,loadOps,storeOps,otherOps,totalOps,gMemAcc,lMemAcc" << endl;
+    out << "functions,bbs,binOps,bitBinOps,vecOps,aggOps,loadOps,storeOps,otherOps,totalOps,gMemAcc,lMemAcc,pMemAcc" << endl;
     out << stats.funcount << "," <<
             stats.bbcount << "," <<
             stats.binOpsCount << "," <<
@@ -215,6 +226,7 @@ void writeToCSV(const string &outFile, const FeatureStats &stats) {
             stats.otherOpsCount << "," <<
             stats.getTotalOpsCount() << "," <<
             stats.globalMemAcc << "," <<
-            stats.localMemAcc << endl;
+            stats.localMemAcc << "," <<
+            stats.privateMemAcc << endl;
     out.close();
 }

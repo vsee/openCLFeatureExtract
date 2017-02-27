@@ -8,12 +8,12 @@ import csv
 import argparse
 
 # TODO generate temporary files in temporary dir
-# TODO get rid of linking local files in compilation commands
 
 parser = argparse.ArgumentParser(description='Collect static kernel features for cl kernel files.')
 
 parser.add_argument("-d", "--dataPath", type=str, help="Root folder with cl kernel files.", required=True)
 parser.add_argument("-o", "--outputFile", type=str, help="Output file name for collected features.", required=True)
+parser.add_argument("-l", "--libclcHome", type=str, help="Home directory of libclc.", required=True)
 
 args = parser.parse_args()
 
@@ -31,8 +31,8 @@ print(*kernels, sep="\n")
 
 BITCODE_OUT = "out.bc"
 FEATURE_OUT = "feature_out.csv"
-COMPILE_CMD = ("clang -include %s -include /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/clc/clc.h "
-"-I /home/vseeker/workspace/workspace-dividend/llvm_3.7.1/libclc/generic/include/ -DBLOCK_SIZE=16 -Dcl_clang_storage_class_specifiers %s "
+COMPILE_CMD = ("clang -include %s -include " + args.libclcHome + "/generic/include/clc/clc.h "
+"-I " + args.libclcHome + "/generic/include/ -DBLOCK_SIZE=16 -Dcl_clang_storage_class_specifiers %s "
 "-o %s -emit-llvm -c -O3 -x cl -w")
 
 KERNEL_HEADER_FILE = "kernel.h"

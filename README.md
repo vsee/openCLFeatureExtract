@@ -33,7 +33,7 @@ Rather than walking the abstract syntax tree of an OpenCL kernel to collect feat
     int get_global_id(int index);
     ```
 
-3. Compile the kernel to llvm bit code using clang and [libclc](https://github.com/llvm-mirror/libclc) header files.
+3. Compile the kernel to llvm bit code using clang and [libclc](https://github.com/llvm-mirror/libclc) header files. For the project clang version 3.8.0 was used.
 
     LLVM Bitcode:
     
@@ -84,3 +84,8 @@ Rather than walking the abstract syntax tree of an OpenCL kernel to collect feat
     ```
  
 ## Python script to find and evaluate multiple kernels
+Features are extracted from all kernels found in a subdirectory by running the provided tool after building the feature extractor with make.
+
+```
+$ ./tools/collectKernelFeatures.py -d ./res -o ./staticKernelFeatures.csv -l ../llvm_3.7.1/libclc/
+```

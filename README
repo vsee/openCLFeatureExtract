@@ -1,5 +1,0 @@
-OpenCL Kernel Feature extractor
-
-AUTHOR: Volker Seeker
-
-code features are extracted from LLVM bit code

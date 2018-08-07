@@ -175,10 +175,10 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
         stats.bitbinOpsCount++;
     }
     else if(AGG_OPS.find(opName) != AGG_OPS.end()) {
-        stats.vecOpsCount++;
+        stats.aggOpsCount++;
     }
     else if(VEC_OPS.find(opName) != VEC_OPS.end()) {
-        stats.aggOpsCount++;
+        stats.vecOpsCount++;
     } else if(const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
         stats.loadOpsCount++;
         if (!checkAddrSpace(li->getPointerAddressSpace(), stats))

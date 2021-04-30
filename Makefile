@@ -1,10 +1,11 @@
 OBJS = oclFeatureExt.o
 CC = g++
 DEBUG = -g -DDEBUG
+LLVM_CONFIG=llvm-config
 
-CPPFLAGS = -Wall -c `llvm-config --cppflags` -std=c++11 ${DEBUG}
-LDFLAGS = -Wall `llvm-config --ldflags`
-LIBS = `llvm-config --libs --system-libs`
+CPPFLAGS = -Wall -c `$(LLVM_CONFIG) --cppflags` -std=c++17 ${DEBUG}
+LDFLAGS = -Wall `$(LLVM_CONFIG) --ldflags`
+LIBS = `$(LLVM_CONFIG) --libs --system-libs`
 
 
 EXEC = oclFeatureExt.out

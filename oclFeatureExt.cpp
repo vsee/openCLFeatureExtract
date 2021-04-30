@@ -6,11 +6,12 @@
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
-#include <llvm/Bitcode/ReaderWriter.h>
+#include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/ADT/Twine.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/raw_ostream.h>
 
 using namespace std;
 using namespace llvm;
@@ -69,7 +70,7 @@ public:
     int privateMemAcc = 0;
 
     // Global operator<< overload:
-    friend ostream &operator<<(ostream &os, const FeatureStats &stats)
+    friend raw_ostream &operator<<(raw_ostream &os, const FeatureStats &stats)
     {
         os << "\n###############################\n";
         os << "#Functions: " << stats.funcount << "\n";
@@ -109,7 +110,7 @@ int main(int argc, char* argv[]) {
     InputParser input(argc, argv);
     
     if(input.cmdOptionExists("-h")) {
-        cout << usage;
+        outs() << usage;
         exit(0);
     }
     if(input.cmdOptionExists("-v")) {
@@ -117,12 +118,12 @@ int main(int argc, char* argv[]) {
     }
     const string &fileName = input.getCmdOption("-f");
     if (fileName.empty()){
-        cout << usage;
+        outs() << usage;
         exit(1);
     }
     const string &outFile = input.getCmdOption("-o");
     if (outFile.empty()){
-        cout << usage;
+        outs() << usage;
         exit(1);
     }
     
@@ -130,18 +131,18 @@ int main(int argc, char* argv[]) {
 
     ErrorOr<unique_ptr<MemoryBuffer>> fileBuffer = MemoryBuffer::getFile(fileName);
     if (error_code ec = fileBuffer.getError())
-		cout << "ERROR loading bitcode file: " << fileName << " -- " << ec.message() << "\n";
+		errs() << "ERROR loading bitcode file: " << fileName << " -- " << ec.message() << "\n";
 	else
-		cout << "Bitcode file loaded: " << fileName << "\n";  
+		outs() << "Bitcode file loaded: " << fileName << "\n";  
     
     
     LLVMContext context;
     MemoryBufferRef memRef = (*fileBuffer)->getMemBufferRef();
-    ErrorOr<unique_ptr<Module>> bcModule = parseBitcodeFile(memRef, context);
-    if (error_code ec = bcModule.getError())
-            cout << "ERROR parsing bitcode file" << ec.message() << "\n";
+    Expected<unique_ptr<Module>> bcModule = parseBitcodeFile(memRef, context);
+    if (!bcModule)
+            errs() << "ERROR parsing bitcode file" << bcModule.takeError() << "\n";
     else
-            cout << "Bitcode parsed successfully!"<< "\n";
+            outs() << "Bitcode parsed successfully!"<< "\n";
     
        
     for (Module::const_iterator curFref = (*bcModule)->getFunctionList().begin(),
@@ -161,7 +162,7 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    cout << stats << "\n\n";
+    outs() << stats << "\n\n";
     writeToCSV(outFile, stats);
 }
 
@@ -182,11 +183,11 @@ void evalInstruction(const Instruction &inst, FeatureStats &stats) {
     } else if(const LoadInst *li = dyn_cast<LoadInst>(&inst)) {
         stats.loadOpsCount++;
         if (!checkAddrSpace(li->getPointerAddressSpace(), stats))
-            li->dump();
+            li->print(outs());
     } else if (const StoreInst *si = dyn_cast<StoreInst>(&inst)) {
         stats.storeOpsCount++;
         if (!checkAddrSpace(si->getPointerAddressSpace(), stats))
-            li->dump();
+            li->print(outs());
     } else {
         stats.otherOpsCount++;
     }
@@ -204,13 +205,13 @@ bool checkAddrSpace(const unsigned addrSpaceId, FeatureStats &stats) {
         stats.privateMemAcc++;
         return true;
     } else {
-        cout << "WARNING: unhandled address space id: " << addrSpaceId << "\n";
+        errs() << "WARNING: unhandled address space id: " << addrSpaceId << "\n";
         return false;
     }
 }
 
 void writeToCSV(const string &outFile, const FeatureStats &stats) {
-    cout << "Writing to file: " << outFile << endl;
+    outs() << "Writing to file: " << outFile << "\n";
     
     ofstream out;
     out.open (outFile);

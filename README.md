@@ -1,10 +1,10 @@
 # OpenCL Kernel Static Feature Extractor
 
-This program is able to extract static code features such as *number of basic blocks* or *number of compute operations* from an OpenCL kernel. The intent behind it is to collect static code features of multiple kernels to generate training data for machine learning models.
+This program can extract static code features such as *number of basic blocks* or *number of compute operations* from LLVM bitcode. When I originally put this together, my intend was to collect static code features of multiple OpenCL kernels to generate training data for machine learning models.
 
 ## Feature Extraction Approach
 
-Rather than walking the abstract syntax tree of an OpenCL kernel to collect feature statistics, this program uses *llvm's* C frontend *clang* to translate an OpenCL C file into llvm [bit code](http://llvm.org/docs/BitCodeFormat.html). With *llvm's* [bit code reader API](http://llvm.org/docs/doxygen/html/ReaderWriter_8h.html) the generated code is then parsed and evaluated.
+Rather than walking the abstract syntax tree of an OpenCL kernel to collect feature statistics, this program uses *llvm's* C frontend *clang* to translate an OpenCL C file into llvm [bit code](http://llvm.org/docs/BitCodeFormat.html). With *llvm's* [bit code reader API](https://llvm.org/doxygen/BitcodeReader_8h.html) the generated code is then parsed and evaluated.
 
 #### Extracted Features
 * Functions
@@ -49,8 +49,7 @@ Rather than walking the abstract syntax tree of an OpenCL kernel to collect feat
     $ clang -include ../../extern/libclc/generic/include/clc/clc.h -I ../../extern/libclc/generic/include/ -DBLOCK_SIZE=16 -Dcl_clang_storage_class_specifiers nw.cl -o nw.ll -emit-llvm -S -O3 -x cl
     ```
     
-4. Use LLVM [bitcode reader](http://stackoverflow.com/questions/1838304/call-llvm-jit-from-c-program
-) to parse LLVM bc file and extract features using library calls.
+4. Use LLVM bitcode reader to parse LLVM bc file and extract features using library calls.
 
 #### Example
 
